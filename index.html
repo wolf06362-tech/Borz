@@ -1,0 +1,447 @@
+```html
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кибер-Змейка и Волки</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: #ffffff;
+            color: #0f051d;
+            touch-action: manipulation;
+            user-select: none;
+        }
+        .cyber-font {
+            font-family: 'Orbitron', sans-serif;
+        }
+        canvas {
+            box-shadow: 0 0 25px rgba(168, 85, 247, 0.2);
+            border-radius: 12px;
+            background-color: #f8fafc;
+        }
+        .cyber-border {
+            border: 2px solid #a855f7;
+            position: relative;
+        }
+        .cyber-border::before {
+            content: '';
+            position: absolute;
+            top: -4px; left: -4px; right: -4px; bottom: -4px;
+            border: 1px solid rgba(236, 72, 153, 0.3);
+            border-radius: 14px;
+            pointer-events: none;
+        }
+        @keyframes firework {
+            0% { transform: scale(0.1); opacity: 1; }
+            50% { opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+        .firework-particle {
+            position: absolute;
+            animation: firework 1s ease-out forwards;
+        }
+        .control-btn-active {
+            background-color: #22c55e !important;
+            border-color: #16a34a !important;
+            color: #ffffff !important;
+            box-shadow: 0 0 15px rgba(34, 197, 94, 0.6) !important;
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between p-1 sm:p-2 overflow-x-hidden">
+
+    <header class="w-full max-w-sm flex justify-between items-center px-2 py-1 relative z-20">
+        <div class="flex items-center space-x-1.5">
+            <span class="text-pink-600 cyber-font font-bold text-[10px]">СБОР:</span>
+            <span id="progressText" class="cyber-font text-purple-700 font-bold text-[10px]">0 / 15</span>
+        </div>
+        
+        <!-- Кнопка 3 точки для настроек -->
+        <button onclick="toggleSettingsModal()" class="w-8 h-8 rounded-full bg-purple-100 hover:bg-purple-200 border border-purple-300 flex items-center justify-center text-purple-800 font-bold text-base shadow-sm transition-transform active:scale-95">
+            ⋮
+        </button>
+    </header>
+
+    <!-- Модальное окно настроек -->
+    <div id="settingsModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4" onclick="if(event.target === this) toggleSettingsModal()">
+        <div class="bg-white border-2 border-purple-400 rounded-2xl p-4 w-72 shadow-2xl cyber-font">
+            <div class="flex justify-between items-center mb-3 border-b border-purple-100 pb-2">
+                <h3 class="text-xs text-purple-800 font-black tracking-wider">НАСТРОЙКИ ИГРЫ</h3>
+                <button onclick="toggleSettingsModal()" class="text-gray-400 hover:text-gray-600 font-bold text-sm">✕</button>
+            </div>
+            
+            <div class="space-y-3 text-[11px]">
+                <div>
+                    <label class="text-pink-600 font-bold block mb-1">СКОРОСТЬ ЗМЕЙКИ:</label>
+                    <select id="speedSelect" onchange="changeSpeed(this.value)" class="w-full bg-purple-50 text-cyan-800 border border-purple-300 rounded p-1.5 outline-none font-semibold">
+                        <option value="180">МЕДЛЕННО</option>
+                        <option value="130" selected>НОРМАЛЬНО</option>
+                        <option value="90">БЫСТРО</option>
+                        <option value="60">ТУРБО</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-pink-600 font-bold block mb-1">ВИБРАЦИЯ:</label>
+                    <select id="vibrationSelect" onchange="changeVibration(this.value)" class="w-full bg-purple-50 text-cyan-800 border border-purple-300 rounded p-1.5 outline-none font-semibold">
+                        <option value="on" selected>ВКЛ</option>
+                        <option value="off">ВЫКЛ</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-pink-600 font-bold block mb-1">УПРАВЛЕНИЕ:</label>
+                    <select id="controlTypeSelect" onchange="changeControlType(this.value)" class="w-full bg-purple-50 text-cyan-800 border border-purple-300 rounded p-1.5 outline-none font-semibold">
+                        <option value="buttons" selected>КНОПКИ</option>
+                        <option value="swipe">СВАЙПЫ</option>
+                        <option value="keys">КЛАВИШИ</option>
+                    </select>
+                </div>
+            </div>
+
+            <button onclick="toggleSettingsModal()" class="mt-4 w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold py-1.5 rounded-lg text-xs shadow-md">
+                ЗАКРЫТЬ
+            </button>
+        </div>
+    </div>
+
+    <main class="flex flex-col items-center w-full max-w-sm flex-grow justify-start my-0.5 space-y-1.5">
+        
+        <!-- Слоты персонажей (15 штук) -->
+        <div id="slotsContainer" class="w-full grid grid-cols-5 gap-1 px-1"></div>
+
+        <!-- Игровое поле -->
+        <div class="relative w-full flex justify-center items-center">
+            <div class="cyber-border rounded-xl p-1 bg-gradient-to-b from-purple-50 to-white shadow-lg">
+                <canvas id="gameCanvas" width="360" height="360" class="max-w-full aspect-square block"></canvas>
+            </div>
+
+            <!-- Стартовый экран (без кнопок) -->
+            <div id="startOverlay" class="absolute inset-0 bg-white/95 backdrop-blur-md flex flex-col items-center justify-center rounded-xl p-4 text-center cursor-pointer shadow-lg" onclick="startGame()">
+                <div class="w-10 h-10 mb-2 rounded-full bg-pink-50 border border-pink-300 flex items-center justify-center text-pink-600 text-lg shadow animate-pulse">🐺</div>
+                <h2 class="cyber-font text-sm sm:text-base text-pink-600 font-bold tracking-wider mb-1">КИБЕР-ЗМЕЙКА И ВОЛКИ</h2>
+                <p class="cyber-font text-[11px] text-cyan-700 font-semibold mb-3">Поймай всех волков и получи 5000р!</p>
+                <div class="cyber-font bg-gradient-to-r from-pink-500 to-cyan-500 text-white font-extrabold px-5 py-1.5 rounded-lg shadow text-[11px] tracking-widest">
+                    СТАРТ
+                </div>
+            </div>
+
+            <!-- Экран Game Over -->
+            <div id="gameOverOverlay" class="absolute inset-0 bg-white/95 backdrop-blur-md hidden flex flex-col items-center justify-center rounded-xl p-4 text-center cursor-pointer shadow-lg" onclick="startGame()">
+                <h2 id="gameOverTitle" class="cyber-font text-lg text-pink-600 mb-1 font-bold">СТОЛКНОВЕНИЕ</h2>
+                <p id="finalScoreText" class="text-cyan-700 text-xs mb-3">Результат</p>
+                <div class="cyber-font bg-gradient-to-r from-pink-500 to-cyan-500 text-white font-extrabold px-5 py-2 rounded-lg shadow text-xs tracking-widest">
+                    ИГРАТЬ СНОВА
+                </div>
+            </div>
+
+            <!-- Экран Победы -->
+            <div id="winOverlay" class="absolute inset-0 bg-gradient-to-b from-purple-900/95 to-pink-900/95 backdrop-blur-md hidden flex flex-col items-center justify-center rounded-xl p-4 text-center cursor-pointer shadow-2xl text-white overflow-hidden" onclick="startGame()">
+                <div id="fireworksContainer" class="absolute inset-0 pointer-events-none"></div>
+                <div class="text-3xl mb-1 animate-bounce">🏆</div>
+                <h2 class="cyber-font text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-pink-300 to-cyan-300 mb-1 drop-shadow">
+                    ВЫ ПОБЕДИЛИ!
+                </h2>
+                <p class="cyber-font text-xs sm:text-sm text-yellow-200 font-bold mb-3 drop-shadow">
+                    Вы выиграли 5.000 руб! 🎉
+                </p>
+                <div class="cyber-font bg-gradient-to-r from-yellow-400 to-pink-500 text-white font-extrabold px-6 py-2 rounded-xl shadow text-xs tracking-widest">
+                    ИГРАТЬ СНОВА
+                </div>
+            </div>
+        </div>
+
+        <!-- Кнопки управления (появляются только при старте игры) -->
+        <div id="controlsContainer" class="grid grid-cols-3 gap-1.5 mt-1 w-44 max-w-full hidden">
+            <div></div>
+            <button id="btn-up" class="bg-purple-100 border border-purple-300 p-2.5 rounded-xl flex items-center justify-center text-cyan-700 text-sm font-bold shadow select-none transition-all">⬆️</button>
+            <div></div>
+            <button id="btn-left" class="bg-purple-100 border border-purple-300 p-2.5 rounded-xl flex items-center justify-center text-cyan-700 text-sm font-bold shadow select-none transition-all">⬅️</button>
+            <button id="btn-down" class="bg-purple-100 border border-purple-300 p-2.5 rounded-xl flex items-center justify-center text-cyan-700 text-sm font-bold shadow select-none transition-all">⬇️</button>
+            <button id="btn-right" class="bg-purple-100 border border-purple-300 p-2.5 rounded-xl flex items-center justify-center text-cyan-700 text-sm font-bold shadow select-none transition-all">➡️</button>
+        </div>
+    </main>
+
+    <script>
+        let audioCtx = null;
+        let vibrationEnabled = true;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function toggleSettingsModal() {
+            const modal = document.getElementById("settingsModal");
+            modal.classList.toggle("hidden");
+        }
+
+        function triggerVibration(pattern = 35) {
+            if (!vibrationEnabled) return;
+            if (navigator.vibrate) {
+                try {
+                    navigator.vibrate(pattern);
+                } catch (e) {}
+            }
+        }
+
+        function changeVibration(val) {
+            vibrationEnabled = (val === 'on');
+        }
+
+        // Звук движения змейки (мягкий шуршащий тон)
+        function playSlitherSound() {
+            if (!audioCtx) return;
+            try {
+                let osc = audioCtx.createOscillator();
+                let gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(110, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(70, audioCtx.currentTime + 0.05);
+
+                gain.gain.setValueAtTime(0.02, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.05);
+            } catch (e) {}
+        }
+
+        // Динамичная музыка погони
+        function playChaseSound(intensity) {
+            if (!audioCtx) return;
+            try {
+                let osc = audioCtx.createOscillator();
+                let gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                let freq = 65 + intensity * 45;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(freq * 1.3, audioCtx.currentTime + 0.08);
+
+                gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.08);
+            } catch (e) {}
+        }
+
+        // Звук при поимке волчонка
+        function playEatSound() {
+            if (!audioCtx) return;
+            try {
+                let osc = audioCtx.createOscillator();
+                let gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1000, audioCtx.currentTime + 0.15);
+
+                gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.15);
+            } catch (e) {}
+        }
+
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        const tileSize = 20;
+        const tileCount = canvas.width / tileSize;
+
+        let snake = [];
+        let goats = [];
+        let dx = 1;
+        let dy = 0;
+        let collectedNames = [];
+        let gameInterval = null;
+        let gameSpeed = 130;
+        let isGameRunning = false;
+        let changingDirection = false;
+        let tickCounter = 0;
+        let currentControlType = "buttons";
+
+        // 15 волчат, имя "Ибряшка" вместо "Аюб", имя "Яса1"
+        const allNames = ["Ильяс", "Хизир", "Шамхан", "Сулейман", "Шамиль", "Юнус", "Юсуф", "Яхья", "Ибряшка", "Жим Шамиль", "Хасайн", "Яса1", "Муса", "Ахмад", "Закри"];
+        
+        // Логика Закри с таймерами по 2 минуты (120 секунд)
+        let zakriPhase = 0; // 0: escaping, 1: avoidance timer (2 min), 2: approaching timer (2 min), 3: vulnerable capture timer (2 min)
+        let zakriTimer = 0;
+        const TWO_MINUTES_SECONDS = 120;
+
+        function getTicksFor2Minutes() {
+            let sSpeed = Math.floor(gameSpeed * 0.9);
+            return Math.floor((TWO_MINUTES_SECONDS * 1000) / sSpeed);
+        }
+
+        function initSlots() {
+            const container = document.getElementById("slotsContainer");
+            container.innerHTML = "";
+            allNames.forEach((name, index) => {
+                const slot = document.createElement("div");
+                slot.id = `slot-${index}`;
+                slot.className = "bg-purple-50 border border-purple-200 rounded p-0.5 text-center text-[8px] text-gray-500 font-semibold transition-all shadow-sm truncate";
+                slot.innerText = name;
+                container.appendChild(slot);
+            });
+        }
+        initSlots();
+
+        function changeSpeed(val) {
+            gameSpeed = parseInt(val);
+            if (isGameRunning) {
+                restartGameLoop();
+            }
+        }
+
+        function changeControlType(type) {
+            currentControlType = type;
+        }
+
+        function restartGameLoop() {
+            if (gameInterval) clearInterval(gameInterval);
+            let snakeSpeed = Math.floor(gameSpeed * 0.9); // Змейка на 10% быстрее волков
+            gameInterval = setInterval(gameLoop, snakeSpeed);
+        }
+
+        function startGame() {
+            initAudio();
+            document.getElementById("startOverlay").classList.add("hidden");
+            document.getElementById("gameOverOverlay").classList.add("hidden");
+            document.getElementById("winOverlay").classList.add("hidden");
+            document.getElementById("controlsContainer").classList.remove("hidden"); // Показываем кнопки управления
+            
+            snake = [
+                { x: 9, y: 10 },
+                { x: 8, y: 10 },
+                { x: 7, y: 10 }
+            ];
+            collectedNames = [];
+            dx = 1;
+            dy = 0;
+            tickCounter = 0;
+            zakriPhase = 0;
+            zakriTimer = 0;
+            updateUI();
+            spawnAllGoats();
+            
+            restartGameLoop();
+            isGameRunning = true;
+        }
+
+        function spawnAllGoats() {
+            goats = [];
+            allNames.forEach(name => {
+                const isZakri = (name === "Закри");
+                let goatObj = createRandomGoat(name, isZakri);
+                goats.push(goatObj);
+            });
+        }
+
+        function createRandomGoat(name, isZakri) {
+            let pos;
+            let overlapping;
+            do {
+                overlapping = false;
+                pos = {
+                    x: Math.floor(Math.random() * (tileCount - 2)) + 1,
+                    y: Math.floor(Math.random() * (tileCount - 2)) + 1
+                };
+                snake.forEach(part => {
+                    if (part.x === pos.x && part.y === pos.y) overlapping = true;
+                });
+                goats.forEach(g => {
+                    if (g.x === pos.x && g.y === pos.y) overlapping = true;
+                });
+            } while (overlapping);
+
+            return {
+                x: pos.x,
+                y: pos.y,
+                name: name,
+                isZakri: isZakri,
+                collected: false
+            };
+        }
+
+        function gameLoop() {
+            changingDirection = false;
+            tickCounter++;
+
+            playSlitherSound();
+
+            const remainingNonZakri = goats.filter(g => !g.isZakri && !g.collected).length;
+            const zakriObj = goats.find(g => g.isZakri);
+
+            if (zakriObj && !zakriObj.collected) {
+                const head = snake[0];
+                const distToZakri = Math.abs(head.x - zakriObj.x) + Math.abs(head.y - zakriObj.y);
+                const limitTicks = getTicksFor2Minutes();
+
+                if (remainingNonZakri > 0) {
+                    moveGoatAway(zakriObj);
+                    zakriPhase = 0;
+                    zakriTimer = 0;
+                } else {
+                    if (zakriPhase === 0) {
+                        moveGoatAway(zakriObj);
+                        if (distToZakri < 4) {
+                            zakriTimer = 0;
+                        } else {
+                            zakriTimer++;
+                        }
+                        if (zakriTimer >= limitTicks) {
+                            zakriPhase = 1;
+                            zakriTimer = 0;
+                        }
+                    } else if (zakriPhase === 1) {
+                        moveGoatTowards(zakriObj);
+                        zakriTimer++;
+                        playChaseSound(3);
+
+                        if (distToZakri < 2) {
+                            zakriPhase = 0;
+                            zakriTimer = 0;
+                        } else if (zakriTimer >= limitTicks) {
+                            zakriPhase = 2;
+                            zakriTimer = 0;
+                        }
+                    } else if (zakriPhase === 2) {
+                        if (tickCounter % 2 === 0) {
+                            moveGoatAway(zakriObj, true);
+                        }
+                        zakriTimer++;
+                        playChaseSound(5);
+
+                        if (zakriTimer >= limitTicks) {
+                            zakriPhase = 0;
+                            zakriTimer = 0;
+                        }
+                    }
+                }
+            }
+
+            // Движение остальных волков (сниженная активность, не проходят сквозь друг друга и змейку, отходят на 1 клетку от границ)
+            goats.forEach(goat => {
+                if (!goat.collected && !goat.isZakri) {
+                    const dist = Math.abs(snake[0].x - goat.x) + Math.abs(snake[0].y - goat.y);
+                    if (dist <= 4 && tickCounter % 8 === 0) {
+                        moveGoatAway(goat);
+                    }
+   
